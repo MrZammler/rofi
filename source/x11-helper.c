@@ -434,6 +434,10 @@ static unsigned int x11_find_mod_mask ( xkb_stuff *xkb, ... )
 
 static void x11_figure_out_masks ( xkb_stuff *xkb )
 {
+    xkb_mod_index_t x;
+    for ( x = 0 ; x < xkb_keymap_num_mods(xkb->keymap) ; ++x )
+        g_debug("Mod %u: %s", x, xkb_keymap_mod_get_name(xkb->keymap, x));
+
     x11_mod_masks[X11MOD_SHIFT]   = x11_find_mod_mask ( xkb, XKB_MOD_NAME_SHIFT, NULL );
     x11_mod_masks[X11MOD_CONTROL] = x11_find_mod_mask ( xkb, XKB_MOD_NAME_CTRL, NULL );
     x11_mod_masks[X11MOD_ALT]     = x11_find_mod_mask ( xkb, XKB_MOD_NAME_ALT, "Alt", "LAlt", "RAlt", "AltGr", "Mod5", "LevelThree", NULL );
