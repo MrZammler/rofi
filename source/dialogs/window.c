@@ -51,6 +51,10 @@
 #include "x11-helper.h"
 #include "dialogs/window.h"
 
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/un.h>
+
 #define WINLIST             32
 
 #define CLIENTSTATE         10
@@ -540,6 +544,55 @@ static inline int act_on_window ( xcb_window_t window )
     return retv;
 }
 
+static inline int bspwm_unhide_window ( xcb_window_t window )
+{
+    int retv = TRUE;
+    int fd;
+    struct sockaddr_un sock_address;
+    char msg[BUFSIZ];
+
+    sock_address.sun_family = AF_UNIX;
+    char *sp;
+
+    if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+      return retv;
+    }
+
+    sp = getenv("BSPWM_SOCKET");
+    if (sp != NULL) {
+      snprintf(sock_address.sun_path, sizeof(sock_address.sun_path), "%s", sp);
+    } else {
+      char *host = NULL;
+      int dn = 0, sn = 0;
+      if (xcb_parse_display(NULL, &host, &dn, &sn) != 0) {
+	snprintf(sock_address.sun_path, sizeof(sock_address.sun_path), "/tmp/bspwm%s_%i_%i-socket", host, dn, sn);
+      }
+      free(host);
+    }
+
+    if (connect(fd, (struct sockaddr *) &sock_address, sizeof(sock_address)) == -1) {
+      close(fd);
+      return retv;
+    }
+
+    int msg_len = 0;
+
+    sprintf(msg, "node %d -g hidden=off", window);
+    msg_len = strlen(msg);
+
+    sprintf(msg, "node%c%d%c-g%chidden=off%c", 0,window,0,0,0);
+    msg_len ++;
+
+    if (send(fd, msg, msg_len, 0) == -1) {
+      close(fd);
+      return retv;
+    }
+
+    close(fd);
+    return retv;
+
+}
+
 static ModeMode window_mode_result ( Mode *sw, int mretv, G_GNUC_UNUSED char **input,
                                      unsigned int selected_line )
 {
@@ -601,6 +654,8 @@ static ModeMode window_mode_result ( Mode *sw, int mretv, G_GNUC_UNUSED char **i
                                                     XCB_EWMH_CLIENT_SOURCE_TYPE_OTHER,
                                                     XCB_CURRENT_TIME, XCB_WINDOW_NONE );
             xcb_flush ( xcb->connection );
+
+	    bspwm_unhide_window ( rmpd->ids->array[selected_line] );
         }
     }
     else if ( ( mretv & ( MENU_ENTRY_DELETE ) ) == MENU_ENTRY_DELETE ) {
@@ -680,7 +735,7 @@ static char * _generate_display_string ( const ModeModePrivateData *pd, client *
     struct arg d    = { pd, c };
     char       *res = g_regex_replace_eval ( pd->window_regex, config.window_format, -1, 0, 0,
                                              helper_eval_cb, &d, NULL );
-    return g_strchomp ( res );
+    return g_strchomp(res);
 }
 
 static char *_get_display_value ( const Mode *sw, unsigned int selected_line, int *state, int get_entry )
